@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // Assuming you have imported your Tailwind CSS in src/index.css
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = 'https://zerodha-poc.onrender.com';
 
 // Helper component for the Login Screen
 const LoginScreen = ({ apiBaseUrl }) => (
