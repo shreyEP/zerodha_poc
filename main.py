@@ -151,6 +151,7 @@ def place_order():
 
 # --- Main execution ---
 if __name__ == '__main__':
-    # Run the app on port 5000 in debug mode
-    # Your React app will run on a different port (e.g., 3000)
-    app.run(port=5000, debug=True)
+    import os
+    port = int(os.environ.get("PORT", 5000))  # Render provides PORT env var
+    app.run(host="0.0.0.0", port=port, debug=True)
+
