@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kite Connect Simple UI</title>
+    <!-- 1. Load Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Use the Inter font, which is clean and modern */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <!-- This is the container for the whole app -->
+    <div id="app" class="container mx-auto p-4 md:p-8 max-w-4xl">
+
+        <!-- 
+          Section 1: Login Screen 
+          This is shown if the user is NOT authenticated.
+        -->
+        <div id="login-screen" class="text-center p-8 bg-white rounded-lg shadow-lg">
+            <h1 class="text-3xl font-bold text-blue-600 mb-4">Kite Connect App</h1>
+            <p class="text-gray-600 mb-8">Please log in with Zerodha to access your dashboard.</p>
+            <a id="login-button" 
+               href="#" 
+               class="inline-block px-8 py-3 font-bold text-white bg-blue-600 rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+                Login with Zerodha
+            </a>
+            <p class="text-sm text-gray-500 mt-4">
+                You will be redirected to the official Zerodha login page.
+            </p>
+        </div>
+
+        <!-- 
+          Section 2: Dashboard Screen
+          This is shown AFTER the user is authenticated.
+        -->
+        <div id="dashboard-screen" class="hidden space-y-6">
+            
+            <!-- Header Card -->
+            <div class="p-6 bg-white rounded-lg shadow-lg">
+                <div class="flex flex-col md:flex-row justify-between md:items-center">
+                    <h1 class="text-3xl font-bold text-blue-600">My Dashboard</h1>
+                    <div id="profile-info" class="text-right mt-4 md:mt-0">
+                        <!-- Profile data will be loaded here -->
+                        <div class="font-semibold text-gray-800 animate-pulse bg-gray-200 rounded w-24">&nbsp;</div>
+                        <div class="text-sm text-green-600 animate-pulse bg-gray-200 rounded w-32 mt-1">&nbsp;</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Holdings and Order Form Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                <!-- Holdings Card -->
+                <div class="md:col-span-2 p-6 bg-white rounded-lg shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4 border-b pb-2">My Holdings</h2>
+                    <div id="holdings-list" class="space-y-4 max-h-96 overflow-y-auto">
+                        <!-- Holdings data will be loaded here -->
+                        <p id="holdings-loader" class="text-gray-500">Loading holdings...</p>
+                    </div>
+                    <div class="pt-4 border-t mt-4">
+                        <div class="flex justify-between font-bold text-lg">
+                            <span>Total P&L</span>
+                            <span id="total-pnl" class="text-gray-700">₹0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Order Form Card -->
+                <div class="p-6 bg-white rounded-lg shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4 border-b pb-2">Place Order</h2>
+                    <form id="order-form" class="space-y-4">
+                        <div>
+                            <label for="symbol" class="block text-sm font-medium text-gray-700">Symbol</label>
+                            <input type="text" id="symbol" value="RELIANCE" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+                        </div>
+                        <div>
+                            <label for="quantity" class="block text-sm font-medium text-gray-700">Quantity</label>
+                            <input type="number" id="quantity" value="1" min="1" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+                        </div>
+                        <div class="flex space-x-4">
+                            <button type="submit" data-action="BUY" class="order-button flex-1 px-4 py-2 font-bold text-white bg-green-600 rounded-md hover:bg-green-700">
+                                Buy
+                            </button>
+                            <button type="submit" data-action="SELL" class="order-button flex-1 px-4 py-2 font-bold text-white bg-red-600 rounded-md hover:bg-red-700">
+                                Sell
+                            </button>
+                        </div>
+                        <div id="order-message" class="text-sm mt-4"></div>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+    </div> <!-- /#app -->
+
+
+    <!-- 
+      Section 3: JavaScript 
+      This script powers the application.
+    -->
+    <script>
+        // The base URL of our Python backend
+        const API_BASE_URL = 'http://localhost:5000';
+
+        // Get references to our main UI elements
+        const loginScreen = document.getElementById('login-screen');
+        const dashboardScreen = document.getElementById('dashboard-screen');
+        const loginButton = document.getElementById('login-button');
+
+        // Set the login button to point to our backend's login route
+        loginButton.href = `${API_BASE_URL}/login`;
+
+        /**
+         * This function runs as soon as the page loads.
+         * It checks with the backend if we are already logged in.
+         */
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log("Checking authentication status...");
+            
+            // We use 'credentials: "include"' to send the secure session cookie
+            // that the backend set during login.
+            fetch(`${API_BASE_URL}/api/check_auth`, {
+                credentials: 'include' 
+            })
+            .then(response => {
+                if (response.ok) {
+                    // We are logged in!
+                    console.log("User is authenticated.");
+                    showDashboard();
+                } else {
+                    // Not logged in.
+                    console.log("User is not authenticated.");
+                    showLogin();
+                }
+            })
+            .catch(error => {
+                console.error("Error checking auth:", error);
+                showLogin();
+                alert("Could not connect to the backend. Is it running on http://localhost:5000?");
+            });
+        });
+
+        /**
+         * Hides the dashboard and shows the login screen
+         */
+        function showLogin() {
+            dashboardScreen.classList.add('hidden');
+            loginScreen.classList.remove('hidden');
+        }
+
+        /**
+         * Hides the login screen, shows the dashboard,
+         * and starts fetching data.
+         */
+        function showDashboard() {
+            loginScreen.classList.add('hidden');
+            dashboardScreen.classList.remove('hidden');
+
+            // Now that we know we're logged in, fetch our data
+            fetchProfile();
+            fetchHoldings();
+            
+            // Set up the order form
+            setupOrderForm();
+        }
+
+        /**
+         * Fetches profile and margin data from the backend
+         */
+        function fetchProfile() {
+            fetch(`${API_BASE_URL}/api/profile`, { credentials: 'include' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    
+                    const profileInfo = document.getElementById('profile-info');
+                    const funds = data.margins?.equity?.available?.cash || 0;
+                    
+                    profileInfo.innerHTML = `
+                        <div class="font-semibold text-gray-800">${data.user_id}</div>
+                        <div class="text-sm text-green-600">
+                            Available Funds: ₹${funds.toLocaleString('en-IN')}
+                        </div>
+                    `;
+                })
+                .catch(error => {
+                    console.error("Error fetching profile:", error);
+                    document.getElementById('profile-info').innerHTML = 
+                        '<div class="text-sm text-red-500">Error loading profile</div>';
+                });
+        }
+
+        /**
+         * Fetches holdings data from the backend
+         */
+        function fetchHoldings() {
+            const listEl = document.getElementById('holdings-list');
+            const pnlEl = document.getElementById('total-pnl');
+            
+            fetch(`${API_BASE_URL}/api/holdings`, { credentials: 'include' })
+                .then(response => response.json())
+                .then(holdings => {
+                    if (holdings.error) throw new Error(holdings.error);
+                    
+                    listEl.innerHTML = ''; // Clear the "Loading..." text
+                    let totalPnl = 0;
+                    
+                    if (holdings.length === 0) {
+                        listEl.innerHTML = '<p class="text-gray-500">No holdings found.</p>';
+                    }
+
+                    holdings.forEach(stock => {
+                        // Calculate PNL
+                        const pnl = (stock.last_price - stock.average_price) * stock.quantity;
+                        totalPnl += pnl;
+                        const isProfit = pnl >= 0;
+                        
+                        const stockHtml = `
+                            <div class="p-4 border rounded-md shadow-sm">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-lg">${stock.tradingsymbol}</span>
+                                    <span class="${isProfit ? 'text-green-600' : 'text-red-600'}">
+                                        ${isProfit ? '▲' : '▼'} ₹${pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                                <div class="text-sm text-gray-600">
+                                    Qty: ${stock.quantity} &bull; Avg: ₹${stock.average_price.toLocaleString('en-IN')}
+                                </div>
+                                <div class="text-sm text-gray-800">
+                                    LTP: ₹${stock.last_price.toLocaleString('en-IN')}
+                                </div>
+                            </div>
+                        `;
+                        listEl.insertAdjacentHTML('beforeend', stockHtml);
+                    });
+
+                    // Update Total PNL
+                    pnlEl.textContent = `₹${totalPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                    pnlEl.className = `font-bold ${totalPnl >= 0 ? 'text-green-600' : 'text-red-600'}`;
+                })
+                .catch(error => {
+                    console.error("Error fetching holdings:", error);
+                    listEl.innerHTML = '<p class="text-sm text-red-500">Error loading holdings.</p>';
+                });
+        }
+        
+        /**
+         * Adds event listeners to the order form
+         */
+        function setupOrderForm() {
+            const form = document.getElementById('order-form');
+            const messageEl = document.getElementById('order-message');
+            
+            // We listen to the form's 'submit' event
+            form.addEventListener('submit', (event) => {
+                event.preventDefault();
+                
+                // Find out which button was clicked (Buy or Sell)
+                // The `submitter` property tells us which button triggered the submit
+                const transactionType = event.submitter.dataset.action;
+                
+                const order = {
+                    tradingsymbol: document.getElementById('symbol').value.toUpperCase(),
+                    quantity: parseInt(document.getElementById('quantity').value, 10),
+                    transaction_type: transactionType,
+                    order_type: "MARKET",
+                    product: "CNC",
+                    exchange: "NSE" // Assuming NSE, you can add an input for this
+                };
+
+                messageEl.textContent = `Placing ${transactionType} order...`;
+                messageEl.className = 'text-sm text-gray-600';
+
+                // Send the order to our backend
+                fetch(`${API_BASE_URL}/api/orders`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(order),
+                    credentials: 'include'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    
+                    messageEl.textContent = `Order ${data.order_id} placed successfully!`;
+                    messageEl.className = 'text-sm text-green-700 font-medium';
+                    
+                    // Re-fetch holdings and profile to show updated funds/positions
+                    fetchHoldings();
+                    fetchProfile();
+                })
+                .catch(error => {
+                    console.error("Error placing order:", error);
+                    messageEl.textContent = `Error: ${error.message}`;
+                    messageEl.className = 'text-sm text-red-700 font-medium';
+                });
+            });
+        }
+
+    </script>
+</body>
+</html>
